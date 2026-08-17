@@ -1,42 +1,133 @@
-# ai-photographer-assistant
-AI photographer Assistant that helps you to improve your photography skills.
+# AI Photographer Assistant
 
-## Spec-driven development
+An experimental Python assistant that analyzes photographs with YOLO and produces
+structured observations and photography recommendations.
 
-The `specs/` directory is the source of truth. Markdown keeps the intent readable for people; a fenced JSON `Data contract` block makes the parts needed by code unambiguous. `scripts/spec.py` is the bridge:
+## Current Capabilities
 
-```text
-Markdown spec -> check -> generated Python dataclasses -> application code/tests
-```
+- Analyze JPEG and other converted image files with YOLO
+- Report detected subjects, scene attributes, confidence, and uncertainty
+- Generate rule-based composition, lighting, and framing suggestions
+- Process every supported image in `converted_photos/`
+- Store one JSON result per processed image in `results.json`
+- Validate and clean duplicate result history
 
-Run the complete workflow from the repository root:
+The assistant does not edit images or draw detection boxes. Its output is text and structured JSON intended to support future conversational feedback.
+
+## Requirements
+
+- Python 3.13 or compatible Python 3 version
+- A YOLO model file at the project root, currently `yolo11n.pt`
+- Runtime packages used by the source code: `ultralytics`, `Pillow`,
+  `pillow-heif`, `opencv-python`, and `numpy`
+
+The repository includes a local `.venv` in the current development environment.
+For a new environment:
 
 ```bash
-python scripts/spec.py all
+python3 -m venv .venv
+source .venv/bin/activate
+pip install ultralytics pillow pillow-heif opencv-python numpy
 ```
 
-Use `check` when reviewing a specification and `generate` after changing its
-contract. Generated files live under `src/generated/` and must not be edited by hand. The implementation in `src/photo_analysis.py` consumes the generated
-`PhotoAnalysisResult`, keeping the spec, contract, and runtime output connected.
+## Run Analysis
 
-Photography advice is defined separately in
-`specs/002-photography-recommendations.md` and implemented by `src/recommendations.py`.
-This keeps detected facts separate from creative
-suggestions.
+Place supported images in `converted_photos/`, then run from the project root:
 
-Markdown itself does not execute or generate Python. The connection is an explicit tool: it locates the JSON contract, validates it, and renders the declared models
-as Python dataclasses. An AI assistant can use the same spec to propose behavior, but the contract and `spec check` provide deterministic, reviewable boundaries.
+```bash
+.venv/bin/python src/main.py
+```
 
-## Verify result history
+The program processes `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, and `.tiff` files.
+It appends one JSON record per image to `results.json`. Running the batch again can create duplicate records for the same filename.
 
-Validate duplicate image results and generate a cleaned copy:
+## Verify History
+
+Validate the result history and create a cleaned copy:
 
 ```bash
 .venv/bin/python scripts/verify_results.py
 ```
 
-The command checks `results.json`, keeps the first result for each filename, and
-writes `cleaned_results.json`. It returns `0` for valid unique results, `1` when
-duplicates are found, and `2` for invalid input. The source history is never
-modified. The decisions are documented in
-`docs/decisions/0001-results-verification.md`.
+The verifier reads `results.json` without modifying it. It keeps the first record for each filename and writes `cleaned_results.json` with this shape:
+
+```json
+{
+    "statistics": {
+        "total_records": 3,
+        "duplicates_removed": 1,
+        "unique_records": 2
+    },
+    "records": []
+}
+```
+
+Exit codes are part of the command contract:
+
+- `0`: valid results with no duplicates
+- `1`: valid results with duplicates; cleaned output was created
+- `2`: missing, invalid, or structurally invalid input
+
+The verifier accepts an optional results path:
+
+```bash
+.venv/bin/python scripts/verify_results.py path/to/results.json
+```
+
+## Test
+
+Run the acceptance tests:
+
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+Run Python compilation and spec validation:
+
+```bash
+.venv/bin/python scripts/spec.py all
+.venv/bin/python -m py_compile src/main.py src/photo_analysis.py src/recommendations.py
+```
+
+## Spec-Driven Workflow
+
+The `specs/` directory defines behavior. Each feature spec contains human-readable requirements and, where code needs a stable shape, a fenced JSON `Data contract`.
+The generator validates these contracts and creates Python dataclasses:
+
+```text
+Markdown specification
+    -> spec check
+    -> generated Python contracts
+    -> implementation
+    -> acceptance tests
+```
+
+Run the complete spec workflow after changing a contract:
+
+```bash
+.venv/bin/python scripts/spec.py all
+```
+
+Generated files under `src/generated/` must not be edited manually. The command-line verifier is implemented manually because the current generator creates data models,not complete programs.
+
+## Project Structure
+
+```text
+src/main.py                         Batch analysis entry point
+src/yolo.py                         YOLO inference
+src/image_analysis.py               Image metadata extraction
+src/photo_analysis.py               Structured detection results
+src/recommendations.py              Rule-based photography advice
+src/generated/                      Generated dataclass contracts
+scripts/spec.py                     Spec checker and contract generator
+scripts/verify_results.py           Duplicate-history verifier
+specs/                              Product and behavior specifications
+docs/decisions/                     Technical decision records
+tests/                              Acceptance tests
+```
+
+## Documentation Map
+
+- `README.md`: how to install, run, test, and operate the project
+- `specs/`: what the product must do
+- `docs/decisions/`: why important technical choices were made
