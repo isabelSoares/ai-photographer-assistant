@@ -77,6 +77,29 @@ class VerifyResultsTests(unittest.TestCase):
         completed = self.run_verifier("not json")
         self.assertEqual(completed.returncode, 2)
 
+    def test_missing_results_file_returns_two(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            missing_path = Path(directory) / "missing.json"
+            completed = subprocess.run(
+                [sys.executable, str(SCRIPT), str(missing_path)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertEqual(completed.returncode, 2)
+
+    def test_root_must_be_an_array(self) -> None:
+        completed = self.run_verifier(json.dumps({"image_filename": "one.jpg"}))
+        self.assertEqual(completed.returncode, 2)
+
+    def test_each_record_must_be_an_object(self) -> None:
+        completed = self.run_verifier(json.dumps(["one.jpg"]))
+        self.assertEqual(completed.returncode, 2)
+
+    def test_filename_must_not_be_blank(self) -> None:
+        completed = self.run_verifier(json.dumps([{"image_filename": "  "}]))
+        self.assertEqual(completed.returncode, 2)
+
     def test_missing_filename_returns_two(self) -> None:
         completed = self.run_verifier(json.dumps([{"analysis": {}}]))
         self.assertEqual(completed.returncode, 2)

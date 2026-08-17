@@ -26,3 +26,17 @@ suggestions.
 
 Markdown itself does not execute or generate Python. The connection is an explicit tool: it locates the JSON contract, validates it, and renders the declared models
 as Python dataclasses. An AI assistant can use the same spec to propose behavior, but the contract and `spec check` provide deterministic, reviewable boundaries.
+
+## Verify result history
+
+Validate duplicate image results and generate a cleaned copy:
+
+```bash
+.venv/bin/python scripts/verify_results.py
+```
+
+The command checks `results.json`, keeps the first result for each filename, and
+writes `cleaned_results.json`. It returns `0` for valid unique results, `1` when
+duplicates are found, and `2` for invalid input. The source history is never
+modified. The decisions are documented in
+`docs/decisions/0001-results-verification.md`.
