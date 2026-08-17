@@ -1,0 +1,96 @@
+{
+    "statistics": {
+        "total_records": 4,
+        "duplicates_removed": 1,
+        "unique_records": 3
+    },
+    "records": [
+        {
+            "image_filename": "IMG_8982.jpg",
+            "analysis": {
+                "summary": "This photo appears to show a person.",
+                "subjects": [
+                    {
+                        "label": "Person",
+                        "confidence": 0.6547430157661438,
+                        "possible": true
+                    }
+                ],
+                "scene_attributes": [],
+                "uncertain": true,
+                "notice": null
+            },
+            "recommendations": {
+                "items": [
+                    {
+                        "text": "Try placing the person slightly off-center to create a more dynamic composition.",
+                        "category": "composition",
+                        "reason": "A person was detected as a main subject."
+                    },
+                    {
+                        "text": "Use the vertical frame to emphasize height and the main subject.",
+                        "category": "framing",
+                        "reason": "The image is portrait-oriented."
+                    },
+                    {
+                        "text": "Some suggestions are tentative because parts of the analysis are uncertain.",
+                        "category": "uncertainty",
+                        "reason": "One or more detections were below the high-confidence level."
+                    }
+                ],
+                "uncertain": true
+            }
+        },
+        {
+            "image_filename": "strawberry.jpg",
+            "analysis": {
+                "summary": "This photo appears to show a vase.",
+                "subjects": [
+                    {
+                        "label": "Vase",
+                        "confidence": 0.769930899143219,
+                        "possible": false
+                    }
+                ],
+                "scene_attributes": [],
+                "uncertain": false,
+                "notice": null
+            },
+            "recommendations": {
+                "items": [
+                    {
+                        "text": "Use the horizontal frame to include context around the main subject.",
+                        "category": "framing",
+                        "reason": "The image is landscape-oriented."
+                    }
+                ],
+                "uncertain": false
+            }
+        },
+        {
+            "image_filename": "test.jpg",
+            "analysis": {
+                "summary": "I couldn't confidently identify the main subjects in this image. Try a clearer or better-lit photo.",
+                "subjects": [],
+                "scene_attributes": [],
+                "uncertain": true,
+                "notice": "I couldn't confidently identify the main subjects in this image. Try a clearer or better-lit photo."
+            },
+            "recommendations": {
+                "items": [
+                    {
+                        "text": "Use the horizontal frame to include context around the main subject.",
+                        "category": "framing",
+                        "reason": "The image is landscape-oriented."
+                    },
+                    {
+                        "text": "Some suggestions are tentative because parts of the analysis are uncertain.",
+                        "category": "uncertainty",
+                        "reason": "One or more detections were below the high-confidence level."
+                    }
+                ],
+                "uncertain": true
+            }
+        }
+    ]
+}
