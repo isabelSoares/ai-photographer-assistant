@@ -1,4 +1,5 @@
 import sys
+import re
 import unittest
 from pathlib import Path
 
@@ -16,6 +17,124 @@ def recommendation_categories(result: PhotoAnalysisResult, image_info: dict) -> 
 
 
 class RecommendationsTests(unittest.TestCase):
+    def test_recommendations_have_explainable_non_empty_fields(self) -> None:
+        result = PhotoAnalysisResult(
+            "A person was detected.",
+            [Detection("Person", 0.95)],
+            [],
+            False,
+        )
+
+        recommendations = generate_recommendations(result, {"width": 800, "height": 1200})
+
+        self.assertTrue(recommendations.items)
+        for item in recommendations.items:
+            self.assertTrue(item.text.strip())
+            self.assertTrue(item.category.strip())
+            self.assertTrue(item.reason.strip())
+
+    def test_actionable_recommendations_use_action_language(self) -> None:
+        result = PhotoAnalysisResult(
+            "A person outdoors.",
+            [Detection("Person", 0.95)],
+            [Detection("street", 0.95)],
+            False,
+        )
+        recommendations = generate_recommendations(result, {"width": 1600, "height": 900})
+        action_words = re.compile(
+            r"\b(try|look|use|check|place|leave|review|practice|consider|balance|choose|offer|photograph|compare)\b",
+            re.IGNORECASE,
+        )
+
+        for item in recommendations.items:
+            if item.category == "uncertainty":
+                continue
+            self.assertRegex(item.text, action_words, msg=item.text)
+
+    def test_person_advice_does_not_invent_emotion_or_pose(self) -> None:
+        result = PhotoAnalysisResult(
+            "A person was detected.",
+            [Detection("Person", 0.95)],
+            [],
+            False,
+        )
+
+        text = " ".join(item.text.lower() for item in generate_recommendations(result, {}).items)
+
+        for unsupported_claim in ("uncomfortable", "unengaged", "was posed", "eye contact"):
+            self.assertNotIn(unsupported_claim, text)
+
+    def test_missing_light_signals_do_not_claim_specific_light_conditions(self) -> None:
+        result = PhotoAnalysisResult(
+            "A car was detected.",
+            [Detection("Car", 0.95)],
+            [Detection("street", 0.95)],
+            False,
+        )
+
+        text = " ".join(item.text.lower() for item in generate_recommendations(result, {}).items)
+
+        for unsupported_condition in ("hard light", "backlit", "golden hour", "blue hour", "overcast", "midday"):
+            self.assertNotIn(unsupported_condition, text)
+
+    def test_camera_advice_requires_signal_and_explains_tradeoff(self) -> None:
+        without_signal = PhotoAnalysisResult(
+            "A person was detected.",
+            [Detection("Person", 0.95)],
+            [],
+            False,
+        )
+        without_camera_advice = generate_recommendations(without_signal, {})
+        self.assertNotIn("camera-settings", {item.category for item in without_camera_advice.items})
+
+        with_signal = PhotoAnalysisResult(
+            "A person was detected in low light.",
+            [Detection("Person", 0.95)],
+            [],
+            False,
+            signals=AnalysisSignals(low_light=True, high_noise=True),
+        )
+        camera_advice = [
+            item.text
+            for item in generate_recommendations(with_signal, {}).items
+            if item.category == "camera-settings"
+        ]
+        self.assertTrue(camera_advice)
+        self.assertIn("ISO", camera_advice[0])
+        self.assertIn("noise", camera_advice[0].lower())
+        self.assertNotRegex(camera_advice[0], r"\b\d{3,4}\b")
+
+    def test_uncertain_recommendations_are_explicitly_cautious(self) -> None:
+        result = PhotoAnalysisResult(
+            "A possible person was detected.",
+            [Detection("Person", 0.60, possible=True)],
+            [],
+            False,
+        )
+
+        recommendations = generate_recommendations(result, {})
+        uncertainty_items = [item for item in recommendations.items if item.category == "uncertainty"]
+
+        self.assertTrue(recommendations.uncertain)
+        self.assertEqual(len(uncertainty_items), 1)
+        self.assertIn("tentative", uncertainty_items[0].text.lower())
+
+    def test_same_category_does_not_repeat_identical_advice(self) -> None:
+        result = PhotoAnalysisResult(
+            "A street scene.",
+            [],
+            [Detection("street", 0.95)],
+            False,
+        )
+
+        recommendations = generate_recommendations(result, {"width": 1600, "height": 900})
+        texts_by_category: dict[str, list[str]] = {}
+        for item in recommendations.items:
+            texts_by_category.setdefault(item.category, []).append(item.text)
+
+        for category, texts in texts_by_category.items():
+            self.assertEqual(len(texts), len(set(texts)), category)
+
     def test_person_gets_composition_portrait_and_review_advice(self) -> None:
         result = PhotoAnalysisResult(
             "A person was detected.",
