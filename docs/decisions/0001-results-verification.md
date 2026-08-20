@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-`src/main.py` processes all images in `converted_photos/` and appends one result record per image to `results.json`. Re-running the batch intentionally preserves
+`src/main.py` processes all images in `converted_photos/` and appends one result record per image to `results.jsonl`. Re-running the batch intentionally preserves
 history, but it can add another record for the same image. Consumers need a safe way to identify and remove duplicate history records without destroying the source
 data.
 
@@ -20,7 +20,7 @@ persisted image ID or content hash.
 ## Decision
 
 Implement `scripts/verify_results.py` as a deterministic command-line verifier.
-The verifier reads `results.json`, validates its structure, reports duplicates, and writes a separate `cleaned_results.json`.
+The verifier reads `results.jsonl`, validates its structure, reports duplicates, and writes a separate `cleaned_results.json`.
 
 ## Duplicate Identity
 
@@ -33,7 +33,7 @@ The verifier reports all indexes for a duplicated filename. Indexes are one-base
 
 The first occurrence of a filename is retained. Later occurrences are removed from the cleaned output because the first record is the earliest history entry.
 
-The source `results.json` is never modified. `cleaned_results.json` contains:
+The source `results.jsonl` is never modified. `cleaned_results.json` contains:
 
 ```json
 {
@@ -69,7 +69,7 @@ Invalid input returns exit code `2` and must not produce a misleading successful
 
 ## Alternatives Considered
 
-### Overwrite `results.json`
+### Overwrite `results.jsonl`
 
 Rejected because cleanup should be reversible and must not destroy the original analysis history.
 
@@ -80,7 +80,7 @@ Rejected because reports would mix operational metadata with application result 
 ### Use JSON Lines for the cleaned output
 
 Rejected for the cleaned artifact because consumers expect a normal JSON document.
-The historical `results.json` may have been written as line-delimited records in earlier versions, but the current batch writer stores a JSON array.
+The historical `results.jsonl` is intentionally line-delimited. It is not renamed to `.json` because JSON Lines is not one standard JSON document.
 
 ### Deduplicate by image content hash
 

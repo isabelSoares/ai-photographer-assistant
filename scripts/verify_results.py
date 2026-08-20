@@ -1,4 +1,4 @@
-"""Validate results.json and report duplicate image results."""
+"""Validate results.jsonl and report duplicate image results."""
 
 from __future__ import annotations
 
@@ -15,7 +15,32 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.generated.results_validation_contract import DuplicateGroup, ValidationStatistics
 
-DEFAULT_RESULTS_PATH = PROJECT_ROOT / "results.json"
+DEFAULT_RESULTS_PATH = PROJECT_ROOT / "results.jsonl"
+
+
+def load_records(results_path: Path) -> list[object]:
+    content = results_path.read_text(encoding="utf-8")
+    if not content.strip():
+        return []
+
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        records: list[object] = []
+        for line_number, line in enumerate(content.splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError as error:
+                raise ValueError(f"invalid JSON on line {line_number}: {error}") from error
+        return records
+
+    # Accept the previous array format as an input migration path, but always
+    # Export results.jsonl as JSON Lines.
+    if isinstance(parsed, list):
+        return parsed
+    return [parsed]
 
 
 def verify_results(results_path: Path) -> int:
@@ -24,14 +49,9 @@ def verify_results(results_path: Path) -> int:
         return 2
 
     try:
-        with results_path.open("r", encoding="utf-8") as file:
-            records = json.load(file)
-    except (OSError, json.JSONDecodeError) as error:
+        records = load_records(results_path)
+    except (OSError, ValueError) as error:
         print(f"Invalid results file: {error}", file=sys.stderr)
-        return 2
-
-    if not isinstance(records, list):
-        print("Invalid results file: root value must be a JSON array", file=sys.stderr)
         return 2
 
     records_by_filename: dict[str, list[int]] = defaultdict(list)
@@ -94,7 +114,7 @@ def main() -> int:
         nargs="?",
         type=Path,
         default=DEFAULT_RESULTS_PATH,
-        help="JSON results file; defaults to the project results.json",
+        help="JSON Lines results file; defaults to the project results.jsonl",
     )
     args = parser.parse_args()
     return verify_results(args.results_path)

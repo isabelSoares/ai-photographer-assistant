@@ -10,9 +10,53 @@ class Detection:
 
 
 @dataclass(frozen=True)
+class AnalysisSignals:
+    bright_background: bool = False
+    uneven_light: bool = False
+    hard_light: bool = False
+    backlight: bool = False
+    low_light: bool = False
+    mixed_light: bool = False
+    white_balance: str | None = None
+    dominant_color: str | None = None
+    color_contrast: str | None = None
+    saturation: str | None = None
+    shallow_depth_of_field: bool = False
+    deep_depth_of_field: bool = False
+    motion: bool = False
+    motion_blur: bool = False
+    action_subject: bool = False
+    high_noise: bool = False
+    iso: int | None = None
+    exposure: str | None = None
+    subject_count: int | None = None
+    isolated_subject: bool = False
+    subject_position: str | None = None
+    subject_size: str | None = None
+    crop: str | None = None
+    edge_proximity: str | None = None
+    clutter: bool = False
+    competing_subjects: bool = False
+    edge_intersection: bool = False
+    distracting_bright_area: bool = False
+    depth_cue: bool = False
+    natural_framing: bool = False
+    low_angle: bool = False
+    high_angle: bool = False
+    convergence: bool = False
+    perspective_distortion: bool = False
+    time_of_day: str | None = None
+    weather: str | None = None
+    light_quality: str | None = None
+    horizon_tilt: bool = False
+    vertical_line_issue: bool = False
+
+
+@dataclass(frozen=True)
 class PhotoAnalysisResult:
     summary: str
     subjects: list[Detection]
     scene_attributes: list[Detection]
     uncertain: bool
     notice: str | None = None
+    signals: AnalysisSignals | None = None

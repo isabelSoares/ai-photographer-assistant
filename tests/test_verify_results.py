@@ -11,9 +11,13 @@ SCRIPT = PROJECT_ROOT / "scripts" / "verify_results.py"
 
 
 class VerifyResultsTests(unittest.TestCase):
+    @staticmethod
+    def json_lines(records: list[object]) -> str:
+        return "\n".join(json.dumps(record) for record in records) + "\n"
+
     def run_verifier(self, content: str) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as directory:
-            results_path = Path(directory) / "results.json"
+            results_path = Path(directory) / "results.jsonl"
             results_path.write_text(content, encoding="utf-8")
             return subprocess.run(
                 [sys.executable, str(SCRIPT), str(results_path)],
@@ -24,7 +28,7 @@ class VerifyResultsTests(unittest.TestCase):
 
     def test_unique_filenames_pass(self) -> None:
         completed = self.run_verifier(
-            json.dumps([
+            self.json_lines([
                 {"image_filename": "one.jpg"},
                 {"image_filename": "two.jpg"},
             ])
@@ -34,7 +38,7 @@ class VerifyResultsTests(unittest.TestCase):
 
     def test_duplicate_filenames_fail_with_indexes(self) -> None:
         completed = self.run_verifier(
-            json.dumps([
+            self.json_lines([
                 {"image_filename": "one.jpg"},
                 {"image_filename": "test.jpg"},
                 {"image_filename": "other.jpg"},
@@ -51,8 +55,8 @@ class VerifyResultsTests(unittest.TestCase):
             {"image_filename": "test.jpg", "value": 3},
         ]
         with tempfile.TemporaryDirectory() as directory:
-            results_path = Path(directory) / "results.json"
-            results_path.write_text(json.dumps(records), encoding="utf-8")
+            results_path = Path(directory) / "results.jsonl"
+            results_path.write_text(self.json_lines(records), encoding="utf-8")
             subprocess.run([sys.executable, str(SCRIPT), str(results_path)], check=False)
 
             cleaned = json.loads((results_path.parent / "cleaned_results.json").read_text())
@@ -62,12 +66,12 @@ class VerifyResultsTests(unittest.TestCase):
             self.assertEqual(cleaned["records"][1]["value"], 2)
 
     def test_cleaning_does_not_modify_original_results(self) -> None:
-        content = json.dumps([
+        content = self.json_lines([
             {"image_filename": "one.jpg"},
             {"image_filename": "one.jpg"},
         ])
         with tempfile.TemporaryDirectory() as directory:
-            results_path = Path(directory) / "results.json"
+            results_path = Path(directory) / "results.jsonl"
             results_path.write_text(content, encoding="utf-8")
             original = results_path.read_bytes()
             subprocess.run([sys.executable, str(SCRIPT), str(results_path)], check=False)
@@ -88,26 +92,30 @@ class VerifyResultsTests(unittest.TestCase):
             )
         self.assertEqual(completed.returncode, 2)
 
-    def test_root_must_be_an_array(self) -> None:
-        completed = self.run_verifier(json.dumps({"image_filename": "one.jpg"}))
-        self.assertEqual(completed.returncode, 2)
+    def test_single_json_lines_object_is_valid(self) -> None:
+        completed = self.run_verifier(json.dumps({"image_filename": "one.jpg"}) + "\n")
+        self.assertEqual(completed.returncode, 0)
+
+    def test_legacy_json_array_is_still_accepted(self) -> None:
+        completed = self.run_verifier(json.dumps([{"image_filename": "one.jpg"}]))
+        self.assertEqual(completed.returncode, 0)
 
     def test_each_record_must_be_an_object(self) -> None:
-        completed = self.run_verifier(json.dumps(["one.jpg"]))
+        completed = self.run_verifier(json.dumps("one.jpg") + "\n")
         self.assertEqual(completed.returncode, 2)
 
     def test_filename_must_not_be_blank(self) -> None:
-        completed = self.run_verifier(json.dumps([{"image_filename": "  "}]))
+        completed = self.run_verifier(json.dumps({"image_filename": "  "}) + "\n")
         self.assertEqual(completed.returncode, 2)
 
     def test_missing_filename_returns_two(self) -> None:
-        completed = self.run_verifier(json.dumps([{"analysis": {}}]))
+        completed = self.run_verifier(json.dumps({"analysis": {}}) + "\n")
         self.assertEqual(completed.returncode, 2)
 
     def test_results_file_is_not_modified(self) -> None:
-        content = json.dumps([{"image_filename": "one.jpg"}])
+        content = json.dumps({"image_filename": "one.jpg"}) + "\n"
         with tempfile.TemporaryDirectory() as directory:
-            results_path = Path(directory) / "results.json"
+            results_path = Path(directory) / "results.jsonl"
             results_path.write_text(content, encoding="utf-8")
             original = results_path.read_bytes()
             subprocess.run(
