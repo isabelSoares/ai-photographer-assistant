@@ -9,7 +9,7 @@ structured observations and photography recommendations.
 - Report detected subjects, scene attributes, confidence, and uncertainty
 - Generate rule-based composition, lighting, and framing suggestions
 - Process every supported image in `converted_photos/`
-- Store one JSON result per processed image in `results.json`
+- Store one JSON Lines result per processed image in `results.jsonl`
 - Validate and clean duplicate result history
 
 The assistant does not edit images or draw detection boxes. Its output is text and structured JSON intended to support future conversational feedback.
@@ -27,7 +27,7 @@ For a new environment:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install ultralytics pillow pillow-heif opencv-python numpy
+pip install -r requirements.txt
 ```
 
 ## Run Analysis
@@ -39,7 +39,7 @@ Place supported images in `converted_photos/`, then run from the project root:
 ```
 
 The program processes `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, and `.tiff` files.
-It appends one JSON record per image to `results.json`. Running the batch again can create duplicate records for the same filename.
+It appends one UTF-8 JSON object per line to `results.jsonl`. Running the batch again can create duplicate records for the same filename.
 
 ## Verify History
 
@@ -49,7 +49,7 @@ Validate the result history and create a cleaned copy:
 .venv/bin/python scripts/verify_results.py
 ```
 
-The verifier reads `results.json` without modifying it. It keeps the first record for each filename and writes `cleaned_results.json` with this shape:
+The verifier reads one JSON object per line from `results.jsonl` without modifying it. It keeps the first record for each filename and writes `cleaned_results.json` as one UTF-8 JSON document with this shape:
 
 ```json
 {
@@ -71,7 +71,7 @@ Exit codes are part of the command contract:
 The verifier accepts an optional results path:
 
 ```bash
-.venv/bin/python scripts/verify_results.py path/to/results.json
+.venv/bin/python scripts/verify_results.py path/to/results.jsonl
 ```
 
 ## Test
