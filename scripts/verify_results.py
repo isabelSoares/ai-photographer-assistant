@@ -6,9 +6,15 @@ import argparse
 import json
 import sys
 from collections import defaultdict
+from dataclasses import asdict
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.generated.results_validation_contract import DuplicateGroup, ValidationStatistics
+
 DEFAULT_RESULTS_PATH = PROJECT_ROOT / "results.json"
 
 
@@ -47,18 +53,20 @@ def verify_results(results_path: Path) -> int:
             cleaned_records.append(record)
             seen_filenames.add(filename)
 
-    duplicates = {
-        filename: indexes
+    duplicate_groups = [
+        DuplicateGroup(image_filename=filename, record_indexes=indexes)
         for filename, indexes in records_by_filename.items()
         if len(indexes) > 1
-    }
+    ]
+
+    statistics = ValidationStatistics(
+        total_records=len(records),
+        duplicates_removed=len(records) - len(cleaned_records),
+        unique_records=len(cleaned_records),
+    )
     cleaned_path = results_path.parent / "cleaned_results.json"
     cleaned_payload = {
-        "statistics": {
-            "total_records": len(records),
-            "duplicates_removed": len(records) - len(cleaned_records),
-            "unique_records": len(cleaned_records),
-        },
+        "statistics": asdict(statistics),
         "records": cleaned_records,
     }
     try:
@@ -67,17 +75,15 @@ def verify_results(results_path: Path) -> int:
         print(f"Could not write cleaned results: {error}", file=sys.stderr)
         return 2
 
-    if duplicates:
+    if duplicate_groups:
         print("Duplicate images found:")
-        for filename, indexes in duplicates.items():
-            print(f"- {filename}: records {', '.join(map(str, indexes))}")
-        print(f"Cleaned results saved to {cleaned_path}")
+        for group in duplicate_groups:
+            print(f"- {group.image_filename}: records {', '.join(map(str, group.record_indexes))}")
         return 1
 
     print("Results validation passed.")
     print(f"Records checked: {len(records)}")
     print("Duplicates found: 0")
-    print(f"Cleaned results saved to {cleaned_path}")
     return 0
 
 
