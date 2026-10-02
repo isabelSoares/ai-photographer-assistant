@@ -30,6 +30,23 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## Convert Source Photos
+
+HEIC/HEIF files should be converted before analysis. The converter uses repository-root
+defaults, so it works regardless of the current directory:
+
+```bash
+.venv/bin/python scripts/convert.py
+```
+
+Use custom directories when needed:
+
+```bash
+.venv/bin/python scripts/convert.py \
+  --input-dir path/to/photos \
+  --output-dir path/to/converted_photos
+```
+
 ## Run Analysis
 
 Place supported images in `converted_photos/`, then run from the project root:
@@ -39,7 +56,17 @@ Place supported images in `converted_photos/`, then run from the project root:
 ```
 
 The program processes `.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, and `.tiff` files.
-It appends one UTF-8 JSON object per line to `results.jsonl`. Running the batch again can create duplicate records for the same filename.
+It appends one UTF-8 JSON object per line to `results.jsonl`. Use `--skip-existing`
+to avoid analyzing filenames already present in the history:
+
+```bash
+.venv/bin/python src/main.py --skip-existing
+```
+
+Input, model, and output paths can also be overridden with `--input-dir`, `--model`,
+`--results`, and `--cleaned-results`. A failed image is reported and omitted. If
+no image is successfully analyzed, result files are not written. A partially
+successful batch writes its successful results and exits with status `1`.
 
 ## Verify History
 
