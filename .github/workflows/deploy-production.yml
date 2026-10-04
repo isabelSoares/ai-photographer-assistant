@@ -1,0 +1,121 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "Validated commit SHA to deploy"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  REVISION: ${{ inputs.revision }}
+
+jobs:
+  build:
+    name: Build immutable release
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out requested revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.revision }}
+
+      - name: Verify required CI check passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          result="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${REVISION}/check-runs" \
+            --jq '[.check_runs[] | select(.name == "CI / validate") | .conclusion] | if length == 1 and .[0] == "success" then "success" else "failure" end')"
+          test "$result" = success
+
+      - name: Create immutable release archive
+        run: |
+          mkdir -p release
+          tar --exclude='results.jsonl' --exclude='cleaned_results.json' --exclude='.env' \
+            -czf "release/ai-photographer-assistant-${REVISION}.tar.gz" \
+            src scripts requirements.txt yolo11n.pt
+
+      - name: Upload immutable release artifact
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: ai-photographer-assistant-${{ inputs.revision }}
+          path: release/ai-photographer-assistant-${{ inputs.revision }}.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  deploy:
+    name: Publish and verify production
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+      url: ${{ vars.SERVICE_URL }}
+    steps:
+      - name: Download immutable release artifact
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: ai-photographer-assistant-${{ inputs.revision }}
+          path: release
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+
+      - name: Transfer release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          archive="release/ai-photographer-assistant-${REVISION}.tar.gz"
+          scp -P "${DEPLOY_PORT:-22}" -i "$HOME/.ssh/deploy_key" -o StrictHostKeyChecking=accept-new \
+            "$archive" "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/ai-photographer-assistant-${REVISION}.tar.gz"
+
+      - name: Activate release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          ssh -p "${DEPLOY_PORT:-22}" -i "$HOME/.ssh/deploy_key" -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "REVISION='${REVISION}' bash -s" <<'REMOTE'
+          set -eu
+          base=/opt/ai-photographer-assistant
+          release="$base/releases/$REVISION"
+          mkdir -p "$release"
+          tar -xzf "/tmp/ai-photographer-assistant-$REVISION.tar.gz" -C "$release"
+          python3.13 -m venv "$release/.venv"
+          "$release/.venv/bin/python" -m pip install --quiet -r "$release/requirements.txt"
+          ln -sfn "$release" "$base/current"
+          printf 'APP_REVISION=%s\nMODEL_PATH=%s\nHOST=0.0.0.0\nPORT=8000\n' "$REVISION" "$release/yolo11n.pt" > "$base/current.env"
+          sudo systemctl restart ai-photographer-assistant.service
+          rm -f "/tmp/ai-photographer-assistant-$REVISION.tar.gz"
+          REMOTE
+
+      - name: Verify live revision
+        env:
+          SERVICE_URL: ${{ vars.SERVICE_URL }}
+        run: |
+          for attempt in $(seq 1 24); do
+            response="$(curl --fail --silent --show-error --max-time 10 "${SERVICE_URL%/}/healthz" || true)"
+            if printf '%s' "$response" | python -c 'import json, sys; payload=json.load(sys.stdin); raise SystemExit(0 if payload.get("status") == "healthy" and payload.get("revision") == __import__("os").environ["REVISION"] else 1)'; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Production health check failed for ${REVISION}" >&2
+          exit 1
