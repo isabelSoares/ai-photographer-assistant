@@ -217,7 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-.Ds_Store
+.DS_Store
 Thumbs.db
 *.tmp
 *.swp

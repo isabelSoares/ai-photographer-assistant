@@ -1,0 +1,65 @@
+name: Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: "Previously healthy commit SHA to restore"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  REVISION: ${{ inputs.revision }}
+
+jobs:
+  rollback:
+    name: Restore and verify production
+    runs-on: ubuntu-24.04
+    environment:
+      name: production
+      url: ${{ vars.SERVICE_URL }}
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+
+      - name: Restore previously published release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          ssh -p "${DEPLOY_PORT:-22}" -i "$HOME/.ssh/deploy_key" -o StrictHostKeyChecking=accept-new \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "REVISION='${REVISION}' bash -s" <<'REMOTE'
+          set -eu
+          base=/opt/ai-photographer-assistant
+          test -d "$base/releases/$REVISION"
+          ln -sfn "$base/releases/$REVISION" "$base/current"
+          sudo systemctl restart ai-photographer-assistant.service
+          REMOTE
+
+      - name: Verify rolled-back revision
+        env:
+          SERVICE_URL: ${{ vars.SERVICE_URL }}
+        run: |
+          for attempt in $(seq 1 24); do
+            response="$(curl --fail --silent --show-error --max-time 10 "${SERVICE_URL%/}/healthz" || true)"
+            if printf '%s' "$response" | python -c 'import json, sys; payload=json.load(sys.stdin); raise SystemExit(0 if payload.get("status") == "healthy" and payload.get("revision") == __import__("os").environ["REVISION"] else 1)'; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Rollback health check failed for ${REVISION}" >&2
+          exit 1

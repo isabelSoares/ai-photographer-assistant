@@ -129,6 +129,14 @@ Run Python compilation and spec validation:
 .venv/bin/python -m py_compile src/main.py src/photo_analysis.py src/recommendations.py
 ```
 
+## Continuous Delivery
+
+Pull requests and updates to `main` run the repository validation suite through GitHub
+Actions. Production deployment is a manually approved workflow that publishes an
+immutable commit revision to a configured Linux host, verifies `/healthz`, and supports
+protected rollback. See [docs/deployment.md](docs/deployment.md) for the host contract,
+required environment configuration, and recovery procedure.
+
 ## Spec-Driven Workflow
 
 The `specs/` directory defines behavior. Each feature spec contains human-readable requirements and, where code needs a stable shape, a fenced JSON `Data contract`.
