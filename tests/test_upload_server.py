@@ -1,6 +1,7 @@
 import threading
 import unittest
 from http.client import HTTPConnection
+from pathlib import Path
 from unittest.mock import patch
 
 from src.upload_server import create_server, result_payload
@@ -41,6 +42,30 @@ class UploadServerTests(unittest.TestCase):
         self.assertIn('id="photo"', body)
         self.assertIn("Maximum 10 MiB", body)
         self.assertIn("No photo selected", body)
+
+    def test_health_endpoint_reports_revision_and_model_readiness(self) -> None:
+        status, body = self.request("GET", "/healthz")
+        self.assertEqual(status, 200)
+        self.assertIn('"status": "healthy"', body)
+        self.assertIn('"revision": "development"', body)
+
+    def test_health_endpoint_reports_unhealthy_when_model_is_missing(self) -> None:
+        server = create_server(port=0, model_path=Path("/tmp/missing-yolo-model.pt"))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            host, port = server.server_address
+            connection = HTTPConnection(host, port, timeout=5)
+            connection.request("GET", "/healthz")
+            response = connection.getresponse()
+            body = response.read().decode()
+            connection.close()
+            self.assertEqual(response.status, 503)
+            self.assertIn('"status": "unhealthy"', body)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
     def test_invalid_upload_returns_replacement_error(self) -> None:
         content_type, body = multipart("photo.gif", b"not-an-image")

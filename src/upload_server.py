@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import html
+import json
+import os
 import threading
 from email import policy
 from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlparse
 
 from .upload_service import (
     MAX_UPLOAD_BYTES,
+    DEFAULT_MODEL_PATH,
     PhotoGuidanceResult,
     ReviewState,
     UploadValidationError,
@@ -18,6 +22,9 @@ from .upload_service import (
 
 MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024
 review_lock = threading.Lock()
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8000
+DEFAULT_REVISION = "development"
 
 
 def safe_error(error: Exception) -> str:
@@ -83,8 +90,28 @@ class UploadHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
+    def _send_json(self, payload: dict, status: int = 200) -> None:
+        encoded = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def _health_response(self) -> tuple[dict, int]:
+        model_path: Path = self.server.model_path  # type: ignore[attr-defined]
+        revision: str = self.server.release_revision  # type: ignore[attr-defined]
+        if model_path.is_file():
+            return {"status": "healthy", "revision": revision}, 200
+        return {"status": "unhealthy", "revision": revision}, 503
+
     def do_GET(self) -> None:
-        if urlparse(self.path).path != "/":
+        path = urlparse(self.path).path
+        if path == "/healthz":
+            payload, status = self._health_response()
+            self._send_json(payload, status)
+            return
+        if path != "/":
             self._send_html(render_page(error="That page was not found."), 404)
             return
         self._send_html(render_page())
@@ -117,13 +144,24 @@ class UploadHandler(BaseHTTPRequestHandler):
         return
 
 
-def create_server(host: str = "127.0.0.1", port: int = 8000) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer((host, port), UploadHandler)
+def create_server(
+    host: str | None = None,
+    port: int | None = None,
+    revision: str | None = None,
+    model_path: Path | str | None = None,
+) -> ThreadingHTTPServer:
+    resolved_host = host if host is not None else os.environ.get("HOST", DEFAULT_HOST)
+    resolved_port = port if port is not None else int(os.environ.get("PORT", str(DEFAULT_PORT)))
+    server = ThreadingHTTPServer((resolved_host, resolved_port), UploadHandler)
+    server.release_revision = revision or os.environ.get("APP_REVISION") or os.environ.get("GITHUB_SHA") or DEFAULT_REVISION
+    server.model_path = Path(model_path or os.environ.get("MODEL_PATH", DEFAULT_MODEL_PATH))
+    return server
 
 
 def main() -> None:
     server = create_server()
-    print("Photo guidance available at http://127.0.0.1:8000/")
+    host, port = server.server_address
+    print(f"Photo guidance available at http://{host}:{port}/")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
