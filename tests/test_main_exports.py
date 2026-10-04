@@ -83,6 +83,28 @@ class MainExportTests(unittest.TestCase):
             self.assertFalse(results_path.exists())
             self.assertFalse(cleaned_path.exists())
 
+    def test_malformed_json_lines_report_the_line_number(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            results_path = Path(directory) / "results.jsonl"
+            results_path.write_text('{"image_filename":"one.jpg"}\nnot json\n', encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "line 2"):
+                load_history(results_path)
+
+    def test_skip_existing_does_not_create_empty_exports(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            converted_dir = Path(directory) / "converted_photos"
+            converted_dir.mkdir()
+            (converted_dir / "one.jpg").write_bytes(b"not used")
+            results_path = Path(directory) / "results.jsonl"
+            results_path.write_text('{"image_filename":"one.jpg"}\n', encoding="utf-8")
+            cleaned_path = Path(directory) / "cleaned_results.json"
+
+            with self.assertRaisesRegex(RuntimeError, "No images were successfully analyzed"):
+                run(converted_dir, results_path, cleaned_path, skip_existing=True)
+
+            self.assertFalse(cleaned_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

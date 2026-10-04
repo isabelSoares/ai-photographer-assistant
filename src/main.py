@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 from dataclasses import asdict
@@ -30,10 +31,22 @@ def load_history(results_path: Path = RESULTS_PATH) -> list[Any]:
 
     try:
         history = json.loads(existing_content)
-        return history if isinstance(history, list) else [history]
     except json.JSONDecodeError:
         # Migrate legacy JSON Lines input into the normalized export format.
-        return [json.loads(line) for line in existing_content.splitlines() if line.strip()]
+        history = []
+        for line_number, line in enumerate(existing_content.splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                history.append(json.loads(line))
+            except json.JSONDecodeError as error:
+                raise ValueError(f"Invalid JSON on line {line_number}: {error}") from error
+
+    if isinstance(history, list):
+        return history
+    if isinstance(history, dict):
+        return [history]
+    raise ValueError("Results history must contain JSON objects")
 
 
 def build_cleaned_payload(history: list[Any]) -> dict[str, Any]:
@@ -93,21 +106,42 @@ def run(
     converted_dir: Path = CONVERTED_DIR,
     results_path: Path = RESULTS_PATH,
     cleaned_results_path: Path = CLEANED_RESULTS_PATH,
-) -> None:
+    model_path: Path | None = None,
+    skip_existing: bool = False,
+) -> int:
     image_paths = find_image_paths(converted_dir)
     if not image_paths:
         raise FileNotFoundError(f"No supported images found in {converted_dir}")
 
-    from image_analysis import get_image_info
-    from photo_analysis import build_analysis_result
-    from recommendations import generate_recommendations
-    from yolo import detect_objects
+    try:
+        from image_analysis import get_image_info
+        from photo_analysis import build_analysis_result
+        from recommendations import generate_recommendations
+        from yolo import detect_objects
+    except ModuleNotFoundError:
+        from src.image_analysis import get_image_info
+        from src.photo_analysis import build_analysis_result
+        from src.recommendations import generate_recommendations
+        from src.yolo import detect_objects
 
     history = load_history(results_path)
+    existing_filenames = {
+        record.get("image_filename")
+        for record in history
+        if isinstance(record, dict) and isinstance(record.get("image_filename"), str)
+    }
+    processed = 0
+    failures = 0
     for image_path in image_paths:
+        if skip_existing and image_path.name in existing_filenames:
+            print(f"Skipped {image_path.name}: already present in history")
+            continue
         try:
             info = get_image_info(str(image_path))
-            result = build_analysis_result(info, detect_objects(str(image_path)))
+            result = build_analysis_result(
+                info,
+                detect_objects(str(image_path), model_path or PROJECT_DIR / "yolo11n.pt"),
+            )
             recommendations = generate_recommendations(result, info)
 
             print(f"\n{image_path.name}")
@@ -121,13 +155,47 @@ def run(
                     "recommendations": asdict(recommendations),
                 }
             )
+            processed += 1
         except Exception as error:
+            failures += 1
             print(f"Skipped {image_path.name}: {error}")
+
+    if processed == 0:
+        raise RuntimeError("No images were successfully analyzed; result files were not written")
 
     export_results(history, results_path, cleaned_results_path)
     print(f"Saved results to {results_path}")
     print(f"Saved cleaned results to {cleaned_results_path}")
+    if failures:
+        print(f"Completed with {failures} failed image(s)")
+        return 1
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Analyze converted photographs in a directory")
+    parser.add_argument("--input-dir", type=Path, default=CONVERTED_DIR)
+    parser.add_argument("--results", type=Path, default=RESULTS_PATH)
+    parser.add_argument("--cleaned-results", type=Path, default=CLEANED_RESULTS_PATH)
+    parser.add_argument("--model", type=Path, default=PROJECT_DIR / "yolo11n.pt")
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Do not analyze filenames already present in the results history",
+    )
+    args = parser.parse_args()
+    try:
+        return run(
+            args.input_dir,
+            args.results,
+            args.cleaned_results,
+            args.model,
+            args.skip_existing,
+        )
+    except (FileNotFoundError, ValueError, RuntimeError) as error:
+        parser.error(str(error))
+        return 2
 
 
 if __name__ == "__main__":
-    run()
+    raise SystemExit(main())

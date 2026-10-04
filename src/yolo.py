@@ -1,24 +1,33 @@
+from pathlib import Path
+
 from PIL import Image
-from ultralytics import YOLO
 import pillow_heif
 
 # 1. Globally enable HEIC support for Pillow
 pillow_heif.register_heif_opener()
 
-# 2. Load the YOLO model
-model = YOLO("yolo11n.pt")
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_MODEL_PATH = PROJECT_DIR / "yolo11n.pt"
+_model = None
+_model_path: Path | None = None
 
 
-def detect_objects(image_path: str):
-    try:
-        # 3. Open the image using Pillow (Handles HEIC, PNG, JPG, etc.)
-        with Image.open(image_path) as img:
-            # 4. Pass the Pillow Image object directly to YOLO
-            results = model(img)
-    except Exception as e:
-        print(f"Error opening image {image_path}: {e}")
-        return []
+def _load_model(model_path: Path):
+    global _model, _model_path
+    if _model is None or _model_path != model_path:
+        from ultralytics import YOLO
 
+        if not model_path.exists():
+            raise FileNotFoundError(f"YOLO model not found: {model_path}")
+        _model = YOLO(str(model_path))
+        _model_path = model_path
+    return _model
+
+
+def detect_objects(image_path: str, model_path: Path = DEFAULT_MODEL_PATH):
+    model = _load_model(model_path)
+    with Image.open(image_path) as img:
+        results = model(img)
     detections = []
 
     for result in results:

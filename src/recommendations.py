@@ -1,5 +1,9 @@
-from generated.photo_analysis_contract import AnalysisSignals, PhotoAnalysisResult
-from generated.recommendations_contract import PhotographyRecommendations, Recommendation
+try:
+    from generated.photo_analysis_contract import AnalysisSignals, PhotoAnalysisResult
+    from generated.recommendations_contract import PhotographyRecommendations, Recommendation
+except ModuleNotFoundError:
+    from src.generated.photo_analysis_contract import AnalysisSignals, PhotoAnalysisResult
+    from src.generated.recommendations_contract import PhotographyRecommendations, Recommendation
 
 
 ANIMAL_LABELS = {

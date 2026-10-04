@@ -1,4 +1,7 @@
-from generated.photo_analysis_contract import Detection, PhotoAnalysisResult
+try:
+    from generated.photo_analysis_contract import Detection, PhotoAnalysisResult
+except ModuleNotFoundError:
+    from src.generated.photo_analysis_contract import Detection, PhotoAnalysisResult
 
 SCENE_LABELS = {"outdoor", "indoor", "beach", "mountain", "city", "kitchen", "street"}
 INFERRED_SCENE_OBJECTS = {
