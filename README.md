@@ -68,6 +68,19 @@ Input, model, and output paths can also be overridden with `--input-dir`, `--mod
 no image is successfully analyzed, result files are not written. A partially
 successful batch writes its successful results and exits with status `1`.
 
+## Run Photo Guidance Upload
+
+Start the local upload area from the repository root:
+
+```bash
+.venv/bin/python -m src.upload_server
+```
+
+Open `http://127.0.0.1:8000/` and upload one JPG, PNG, WEBP, BMP, TIFF, or HEIC photo
+up to 10 MiB. The review is request-scoped: the normalized temporary image is removed
+after analysis, and upload reviews are not added to `results.jsonl` or
+`cleaned_results.json`.
+
 ## Verify History
 
 Validate the result history and create a cleaned copy:
