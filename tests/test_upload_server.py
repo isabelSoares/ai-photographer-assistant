@@ -17,7 +17,7 @@ def multipart(filename: str, content: bytes) -> tuple[str, bytes]:
 class UploadServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.server = create_server(port=0)
+        cls.server = create_server(port=0, revision="development")
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
         cls.host, cls.port = cls.server.server_address
