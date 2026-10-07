@@ -77,9 +77,15 @@ Start the local upload area from the repository root:
 ```
 
 Open `http://127.0.0.1:8000/` and upload one JPG, PNG, WEBP, BMP, TIFF, or HEIC photo
-up to 10 MiB. The review is request-scoped: the normalized temporary image is removed
-after analysis, and upload reviews are not added to `results.jsonl` or
-`cleaned_results.json`.
+up to 10 MiB. The server accepts the upload immediately and analyzes photos one at a
+time in a background queue. The page updates automatically as the review progresses;
+you can also upload a second photo while the first is being reviewed. If the page is
+refreshed, the current `job_id` in the URL lets the browser resume polling.
+
+The review is request-scoped: the normalized temporary image is removed after analysis,
+and upload reviews are not added to `results.jsonl` or `cleaned_results.json`. When
+many photos are waiting, the queue limits how many can be accepted at once and the page
+shows an estimated wait time.
 
 ## Verify History
 

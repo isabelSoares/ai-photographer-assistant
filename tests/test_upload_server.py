@@ -1,9 +1,13 @@
+import json
 import threading
+import time
 import unittest
 from http.client import HTTPConnection
+from io import BytesIO
 from pathlib import Path
-from unittest.mock import patch
+from PIL import Image
 
+from src.upload_jobs import JobState
 from src.upload_server import create_server, result_payload
 from src.upload_service import PhotoGuidanceResult, ReviewState
 
@@ -12,6 +16,23 @@ def multipart(filename: str, content: bytes) -> tuple[str, bytes]:
     boundary = "----photo-test-boundary"
     body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"photo\"; filename=\"{filename}\"\r\nContent-Type: image/jpeg\r\n\r\n").encode() + content + f"\r\n--{boundary}--\r\n".encode()
     return f"multipart/form-data; boundary={boundary}", body
+
+
+def valid_jpeg_bytes() -> bytes:
+    image = Image.new("RGB", (10, 10), color="red")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+
+def stub_analyzer(path: Path) -> PhotoGuidanceResult:
+    return PhotoGuidanceResult(
+        upload_name="photo.jpg",
+        state=ReviewState.COMPLETED,
+        summary="A person was detected.",
+        tips=[{"text": "Try an off-center composition.", "category": "composition", "reason": "A person was detected."}],
+        uncertain=True,
+    )
 
 
 class UploadServerTests(unittest.TestCase):
@@ -27,6 +48,11 @@ class UploadServerTests(unittest.TestCase):
         cls.server.shutdown()
         cls.server.server_close()
         cls.thread.join()
+
+    def setUp(self) -> None:
+        self.server.review_queue._jobs.clear()
+        self.server.job_store._jobs.clear()
+        self.server.analysis_worker.analyzer = stub_analyzer
 
     def request(self, method: str, path: str, body: bytes = b"", headers: dict | None = None):
         connection = HTTPConnection(self.host, self.port, timeout=5)
@@ -71,19 +97,85 @@ class UploadServerTests(unittest.TestCase):
         content_type, body = multipart("photo.gif", b"not-an-image")
         status, response = self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
         self.assertEqual(status, 400)
-        self.assertIn("Choose another photo", response)
-        self.assertIn("not supported", response)
+        data = json.loads(response)
+        self.assertIn("not supported", data["error"])
+        self.assertIn("JPG", data["error"])
 
-    def test_completed_result_renders_safe_actionable_guidance(self) -> None:
-        result = PhotoGuidanceResult("<photo>.jpg", ReviewState.COMPLETED, summary="A person was detected.", tips=[{"text": "Try an off-center composition.", "category": "composition", "reason": "A person was detected."}], uncertain=True)
-        content_type, body = multipart("photo.jpg", b"valid")
-        with patch("src.upload_server.review_upload", return_value=result):
-            status, response = self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
+    def test_valid_upload_returns_202_with_job_id_and_queue_state(self) -> None:
+        content_type, body = multipart("photo.jpg", valid_jpeg_bytes())
+        status, response = self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
+        self.assertEqual(status, 202)
+        data = json.loads(response)
+        self.assertIn("job_id", data)
+        self.assertEqual(data["state"], JobState.QUEUED.value)
+        self.assertEqual(data["queue_position"], 1)
+        self.assertIn("message", data)
+
+    def test_status_endpoint_returns_completed_state(self) -> None:
+        content_type, body = multipart("photo.jpg", valid_jpeg_bytes())
+        status, response = self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
+        job_id = json.loads(response)["job_id"]
+        data = self._poll_status(job_id, {JobState.COMPLETED.value, JobState.FAILED.value})
+        self.assertEqual(data["state"], JobState.COMPLETED.value)
+        self.assertEqual(data["result"]["summary"], "A person was detected.")
+
+    def _poll_status(self, job_id: str, terminal_states: set[str], timeout: float = 5.0) -> dict:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            status, response = self.request("GET", f"/status/{job_id}")
+            self.assertEqual(status, 200)
+            data = json.loads(response)
+            if data["state"] in terminal_states:
+                return data
+            time.sleep(0.05)
+        self.fail(f"Job {job_id} did not reach a terminal state in time")
+
+    def test_status_endpoint_returns_404_for_unknown_job(self) -> None:
+        status, response = self.request("GET", "/status/unknownjobid")
+        self.assertEqual(status, 404)
+        self.assertIn("error", json.loads(response))
+
+    def test_second_upload_is_queued_with_position(self) -> None:
+        # Slow analyzer keeps first job in processing for a long time.
+        self.server.analysis_worker.analyzer = lambda path: time.sleep(2) or stub_analyzer(path)
+
+        content_type, body = multipart("first.jpg", valid_jpeg_bytes())
+        status, response = self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
+        first_id = json.loads(response)["job_id"]
+
+        # Wait until the first job is actually being processed.
+        self._poll_status(first_id, {JobState.PROCESSING.value})
+
+        content_type2, body2 = multipart("second.jpg", valid_jpeg_bytes())
+        status2, response2 = self.request("POST", "/review", body2, {"Content-Type": content_type2, "Content-Length": str(len(body2))})
+        self.assertEqual(status2, 202)
+        data = json.loads(response2)
+        self.assertEqual(data["queue_position"], 1)
+        self.assertIn("second.jpg", data["message"])
+
+        # Restore fast analyzer and wait for both to complete.
+        self.server.analysis_worker.analyzer = stub_analyzer
+        self._poll_status(first_id, {JobState.COMPLETED.value, JobState.FAILED.value})
+
+    def test_queue_overflow_returns_503(self) -> None:
+        self.server.analysis_worker.analyzer = lambda path: time.sleep(10) or stub_analyzer(path)
+        for i in range(10):
+            content_type, body = multipart(f"photo{i}.jpg", valid_jpeg_bytes())
+            self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
+        content_type, body = multipart("overflow.jpg", valid_jpeg_bytes())
+        status, response = self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
+        self.assertEqual(status, 503)
+        self.assertIn("busy", json.loads(response)["error"].lower())
+        self.server.analysis_worker.analyzer = stub_analyzer
+
+    def test_healthz_remains_healthy_while_jobs_are_processing(self) -> None:
+        self.server.analysis_worker.analyzer = lambda path: time.sleep(1) or stub_analyzer(path)
+        content_type, body = multipart("busy.jpg", valid_jpeg_bytes())
+        self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
+        status, response = self.request("GET", "/healthz")
         self.assertEqual(status, 200)
-        self.assertIn("&lt;photo&gt;.jpg", response)
-        self.assertNotIn("<photo>.jpg", response)
-        self.assertIn("Try an off-center composition", response)
-        self.assertIn("tentative", response)
+        self.assertIn('"status": "healthy"', response)
+        self.server.analysis_worker.analyzer = stub_analyzer
 
     def test_result_payload_matches_contract_fields(self) -> None:
         payload = result_payload(PhotoGuidanceResult("photo.jpg", ReviewState.ERROR, error_message="Try again."))
@@ -92,15 +184,14 @@ class UploadServerTests(unittest.TestCase):
         self.assertIn("uncertain", payload)
         self.assertEqual(payload["error_message"], "Try again.")
 
-    def test_analysis_error_offers_retry_and_replacement(self) -> None:
-        result = PhotoGuidanceResult("photo.jpg", ReviewState.ERROR, error_message="The photo could not be analyzed.")
-        content_type, body = multipart("photo.jpg", b"valid")
-        with patch("src.upload_server.review_upload", return_value=result):
-            status, response = self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
-        self.assertEqual(status, 500)
-        self.assertIn("Try again", response)
-        self.assertIn("Choose another photo", response)
-        self.assertNotIn("Review for photo.jpg", response)
+    def test_page_escapes_upload_name_in_initial_render(self) -> None:
+        content_type, body = multipart("<script>alert.jpg", valid_jpeg_bytes())
+        status, response = self.request("POST", "/review", body, {"Content-Type": content_type, "Content-Length": str(len(body))})
+        job_id = json.loads(response)["job_id"]
+        status, page = self.request("GET", f"/?job_id={job_id}")
+        self.assertEqual(status, 200)
+        self.assertNotIn("<script>alert", page)
+        self.assertIn("&lt;script&gt;alert", page)
 
 
 if __name__ == "__main__":
