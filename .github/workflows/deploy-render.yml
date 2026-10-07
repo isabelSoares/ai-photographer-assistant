@@ -1,0 +1,43 @@
+name: Deploy to Render
+
+"on":
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: render-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Render
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Trigger Render deploy hook
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          curl -fsS --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL"
+
+      - name: Wait for Render deployment
+        env:
+          RENDER_SERVICE_URL: ${{ vars.RENDER_SERVICE_URL }}
+          REVISION: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          for attempt in $(seq 1 36); do
+            response="$(curl -fsS --max-time 10 "${RENDER_SERVICE_URL%/}/healthz" || true)"
+            if printf '%s' "$response" | python -c 'import json, sys, os; payload=json.load(sys.stdin); raise SystemExit(0 if payload.get("status") == "healthy" and payload.get("revision") == os.environ["REVISION"] else 1)'; then
+              echo "Deployment healthy for revision ${REVISION}"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: not healthy yet, waiting 10s..."
+            sleep 10
+          done
+          echo "Deployment health check failed for revision ${REVISION}" >&2
+          exit 1
