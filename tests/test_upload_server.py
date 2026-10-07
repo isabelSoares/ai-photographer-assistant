@@ -1,7 +1,9 @@
 import json
+import os
 import threading
 import time
 import unittest
+import unittest.mock
 from http.client import HTTPConnection
 from io import BytesIO
 from pathlib import Path
@@ -74,6 +76,20 @@ class UploadServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn('"status": "healthy"', body)
         self.assertIn('"revision": "development"', body)
+
+    def test_health_endpoint_uses_render_git_commit_revision(self) -> None:
+        env = {"RENDER_GIT_COMMIT": "abc123render"}
+        with unittest.mock.patch.dict(os.environ, env, clear=False):
+            server = create_server(port=0, revision=None)
+        self.assertEqual(server.release_revision, "abc123render")
+        server.server_close()
+
+    def test_health_endpoint_uses_app_revision_over_render(self) -> None:
+        env = {"APP_REVISION": "app-sha", "RENDER_GIT_COMMIT": "render-sha"}
+        with unittest.mock.patch.dict(os.environ, env, clear=False):
+            server = create_server(port=0, revision=None)
+        self.assertEqual(server.release_revision, "app-sha")
+        server.server_close()
 
     def test_health_endpoint_reports_unhealthy_when_model_is_missing(self) -> None:
         server = create_server(port=0, model_path=Path("/tmp/missing-yolo-model.pt"))
