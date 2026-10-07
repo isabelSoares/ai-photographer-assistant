@@ -27,6 +27,26 @@ The target host must already provide Python 3.13, the required system libraries 
 
 ## Release Flow
 
+### Render auto-deploy
+
+For deployments to Render, `.github/workflows/deploy-render.yml` runs automatically
+after `.github/workflows/ci.yml` succeeds on `main`:
+
+1. The CI workflow validates the commit.
+2. The Render deploy workflow triggers the Render deploy hook.
+3. Render builds and deploys the commit.
+4. The workflow polls `RENDER_SERVICE_URL/healthz` until the response revision
+   matches the deployed commit SHA.
+
+Required GitHub configuration:
+
+- Secret `RENDER_DEPLOY_HOOK_URL` from the Render dashboard.
+- Variable `RENDER_SERVICE_URL` pointing to the Render service.
+
+This path does not use the `production` GitHub environment or SSH secrets.
+
+### Manual VPS deployment
+
 1. Pull requests run `.github/workflows/ci.yml`.
 2. A passing protected-branch revision can be selected through `workflow_dispatch` in `.github/workflows/deploy-production.yml`.
 3. GitHub environment approval is required before deployment secrets are exposed.
