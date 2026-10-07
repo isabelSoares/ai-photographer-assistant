@@ -246,7 +246,13 @@ def create_server(
     resolved_host = host if host is not None else os.environ.get("HOST", DEFAULT_HOST)
     resolved_port = port if port is not None else int(os.environ.get("PORT", str(DEFAULT_PORT)))
     server = PhotoGuidanceServer((resolved_host, resolved_port), UploadHandler)
-    server.release_revision = revision or os.environ.get("APP_REVISION") or os.environ.get("GITHUB_SHA") or DEFAULT_REVISION
+    server.release_revision = (
+        revision
+        or os.environ.get("APP_REVISION")
+        or os.environ.get("RENDER_GIT_COMMIT")
+        or os.environ.get("GITHUB_SHA")
+        or DEFAULT_REVISION
+    )
     server.model_path = Path(model_path or os.environ.get("MODEL_PATH", DEFAULT_MODEL_PATH))
     return server
 
@@ -255,6 +261,8 @@ def main() -> None:
     server = create_server()
     host, port = server.server_address
     print(f"Photo guidance available at http://{host}:{port}/")
+    print(f"Revision: {server.release_revision}")
+    print(f"Model path: {server.model_path}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
