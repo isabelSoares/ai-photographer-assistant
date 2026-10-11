@@ -143,15 +143,16 @@ A Cloudflare Workers + React version of the assistant is available for embedding
 - `web-component/` — drop-in React component and stylesheet.
 - `docs/integration.md` — step-by-step guide for adding the component to a React site on GitHub Pages.
 
-This path avoids the CPU and cold-start limitations of Render Free. Uploaded photos are analyzed in real time and are not stored by the Worker.
+Uploaded photos are analyzed in real time and are not stored by the Worker.
 
 ## Continuous Delivery
 
 Pull requests and updates to `main` run the repository validation suite through GitHub
-Actions. Production deployment is a manually approved workflow that publishes an
-immutable commit revision to a configured Linux host, verifies `/healthz`, and supports
-protected rollback. See [docs/deployment.md](docs/deployment.md) for the host contract,
-required environment configuration, and recovery procedure.
+Actions. Merges to `main` also trigger an automatic Cloudflare Worker deployment for the
+photo assistant. The Python application is published through a separate manually approved
+workflow that publishes an immutable commit revision to a configured Linux host, verifies
+`/healthz`, and supports protected rollback. See [docs/deployment.md](docs/deployment.md)
+for the host contract, required environment configuration, and recovery procedure.
 
 ## Spec-Driven Workflow
 

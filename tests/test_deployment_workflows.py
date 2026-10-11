@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEPLOY = ROOT / ".github/workflows/deploy-production.yml"
 ROLLBACK = ROOT / ".github/workflows/rollback-production.yml"
+CLOUDFLARE_DEPLOY = ROOT / ".github/workflows/deploy-cloudflare.yml"
 
 
 class DeploymentWorkflowTests(unittest.TestCase):
@@ -44,11 +45,29 @@ class DeploymentWorkflowTests(unittest.TestCase):
         ):
             self.assertIn(expected, workflow)
 
+    def test_cloudflare_worker_deploy_triggers_after_main_ci_success(self) -> None:
+        workflow = CLOUDFLARE_DEPLOY.read_text()
+        for expected in (
+            "workflow_run:",
+            'workflows: ["CI"]',
+            "types: [completed]",
+            "branches: [main]",
+            "github.event.workflow_run.conclusion == 'success'",
+            "CLOUDFLARE_API_TOKEN",
+            "CLOUDFLARE_ACCOUNT_ID",
+            "workingDirectory: worker",
+            "command: deploy",
+            "contents: read",
+        ):
+            self.assertIn(expected, workflow)
+
     def test_workflows_pin_third_party_actions(self) -> None:
-        for path in (DEPLOY, ROOT / ".github/workflows/ci.yml"):
+        for path in (DEPLOY, ROLLBACK, CLOUDFLARE_DEPLOY, ROOT / ".github/workflows/ci.yml"):
             for line in path.read_text().splitlines():
                 if "uses: actions/" in line:
                     self.assertRegex(line, r"uses: actions/[\w-]+@[0-9a-f]{40}")
+                if "uses: cloudflare/" in line:
+                    self.assertRegex(line, r"uses: cloudflare/[\w-]+@[0-9a-f]{40}")
 
 
 if __name__ == "__main__":

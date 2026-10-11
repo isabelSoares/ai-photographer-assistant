@@ -27,21 +27,19 @@ The target host must already provide Python 3.13, the required system libraries 
 
 ## Release Flow
 
-### Render auto-deploy
+### Cloudflare Worker auto-deploy
 
-For deployments to Render, `.github/workflows/deploy-render.yml` runs automatically
-after `.github/workflows/ci.yml` succeeds on `main`:
+For deployments to Cloudflare Workers, `.github/workflows/deploy-cloudflare.yml` runs
+automatically after `.github/workflows/ci.yml` succeeds on `main`:
 
-1. The CI workflow validates the commit.
-2. The Render deploy workflow triggers the Render deploy hook.
-3. Render builds and deploys the commit.
-4. The workflow polls `RENDER_SERVICE_URL/healthz` until the response revision
-   matches the deployed commit SHA.
+1. The CI workflow validates the commit and typechecks the Worker code.
+2. The Cloudflare deploy workflow installs dependencies in `worker/`.
+3. Wrangler deploys the Worker using the configured API token.
 
 Required GitHub configuration:
 
-- Secret `RENDER_DEPLOY_HOOK_URL` from the Render dashboard.
-- Variable `RENDER_SERVICE_URL` pointing to the Render service.
+- Secret `CLOUDFLARE_API_TOKEN` with **Cloudflare Workers:Edit** and **Account:Read** permissions.
+- Variable `CLOUDFLARE_ACCOUNT_ID` from the Cloudflare dashboard overview page.
 
 This path does not use the `production` GitHub environment or SSH secrets.
 

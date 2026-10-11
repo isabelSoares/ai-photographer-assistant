@@ -100,6 +100,39 @@ description: "Task list for Cloudflare Photo Assistant feature"
 
 ---
 
+## Phase 7: Pipeline Migration — Render to Cloudflare (Priority: P1)
+
+**Purpose**: Replace the Render auto-deploy path with automatic Cloudflare Worker deployment
+
+**Goal**: Every merge to `main` automatically deploys the Cloudflare Worker after CI passes.
+
+**Independent Test**: Push to `main`, wait for CI success, confirm the Cloudflare workflow runs and the Worker is updated.
+
+### Remove Render
+
+- [x] T024 Delete `.github/workflows/deploy-render.yml`
+- [x] T025 [P] Remove Render references from `docs/deployment.md`
+- [x] T026 [P] Remove Render references from `README.md`
+- [x] T027 [P] Remove Render-specific assertions from `tests/test_deployment_workflows.py`
+
+### Add Cloudflare Auto-Deploy
+
+- [x] T028 [P] Verify `worker/package.json` exposes `npm run typecheck`
+- [x] T029 Update `.github/workflows/ci.yml` to run Worker typecheck
+- [x] T030 Create `.github/workflows/deploy-cloudflare.yml` with `workflow_run` trigger after CI success on `main`
+- [x] T031 Pin `cloudflare/wrangler-action` to immutable SHA in `.github/workflows/deploy-cloudflare.yml`
+- [x] T032 Configure `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.github/workflows/deploy-cloudflare.yml`
+- [x] T033 Add Wrangler deploy step scoped to `worker/` in `.github/workflows/deploy-cloudflare.yml`
+
+### Validation & Documentation
+
+- [x] T034 [P] Add Cloudflare workflow assertions to `tests/test_deployment_workflows.py`
+- [x] T035 [P] Update `docs/deployment.md` with Cloudflare Worker deployment flow and required GitHub configuration
+- [x] T036 [P] Update `README.md` continuous-delivery section
+- [x] T037 Run `python -m unittest discover -s tests -v` to verify test updates pass
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
