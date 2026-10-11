@@ -1,0 +1,9 @@
+name = "ai-photo-assistant"
+main = "src/index.ts"
+compatibility_date = "2026-10-09"
+
+[ai]
+binding = "AI"
+
+[vars]
+PORTFOLIO_ORIGIN = "https://isabelsoares.github.io"
