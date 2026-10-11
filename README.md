@@ -135,6 +135,16 @@ Run Python compilation and spec validation:
 .venv/bin/python -m py_compile src/main.py src/photo_analysis.py src/recommendations.py
 ```
 
+## Web Integration (Experimental)
+
+A Cloudflare Workers + React version of the assistant is available for embedding in a portfolio website:
+
+- `worker/` — serverless backend that uses Cloudflare Workers AI for object detection and scene classification.
+- `web-component/` — drop-in React component and stylesheet.
+- `docs/integration.md` — step-by-step guide for adding the component to a React site on GitHub Pages.
+
+This path avoids the CPU and cold-start limitations of Render Free. Uploaded photos are analyzed in real time and are not stored by the Worker.
+
 ## Continuous Delivery
 
 Pull requests and updates to `main` run the repository validation suite through GitHub
