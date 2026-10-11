@@ -222,7 +222,6 @@ node_modules/
 worker/node_modules/
 worker/dist/
 worker/.wrangler/
-worker/package-lock.json
 worker/yarn.lock
 worker/pnpm-lock.yaml
 web-component/node_modules/

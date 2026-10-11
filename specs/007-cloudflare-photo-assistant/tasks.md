@@ -130,6 +130,7 @@ description: "Task list for Cloudflare Photo Assistant feature"
 - [x] T035 [P] Update `docs/deployment.md` with Cloudflare Worker deployment flow and required GitHub configuration
 - [x] T036 [P] Update `README.md` continuous-delivery section
 - [x] T037 Run `python -m unittest discover -s tests -v` to verify test updates pass
+- [x] T038 Fix `actions/setup-node` cache path resolution by removing `cache: npm` from `.github/workflows/ci.yml` and `.github/workflows/deploy-cloudflare.yml`
 
 ---
 
