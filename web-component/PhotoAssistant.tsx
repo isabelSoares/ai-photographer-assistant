@@ -1,15 +1,68 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, ChangeEvent, FormEvent } from "react";
 
-const SUPPORTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+export interface DetectedObject {
+  label: string;
+  score: number;
+  box: {
+    xmin: number;
+    ymin: number;
+    xmax: number;
+    ymax: number;
+  };
+}
+
+export interface SceneLabel {
+  label: string;
+  score: number;
+}
+
+export interface GuidanceTip {
+  category: string;
+  text: string;
+  reason?: string;
+}
+
+export interface PhotoGuidanceResult {
+  summary: string;
+  subjects: DetectedObject[];
+  scenes: SceneLabel[];
+  tips: GuidanceTip[];
+  uncertain: boolean;
+  notice: string | null;
+  error_message: string | null;
+}
+
+export interface PhotoAssistantProps {
+  /** URL of the Cloudflare Worker backend. */
+  workerUrl: string;
+  /** Max width/height for the resized image. */
+  maxDimension?: number;
+  /** JPEG compression quality (0-1). */
+  quality?: number;
+  /** Extra CSS class for the root element. */
+  className?: string;
+}
+
+const SUPPORTED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MiB
-const MAX_DIMENSION = 1024;
-const JPEG_QUALITY = 0.85;
+const DEFAULT_MAX_DIMENSION = 1024;
+const DEFAULT_QUALITY = 0.85;
+
+interface ResizeResult {
+  dataUrl: string;
+  width: number;
+  height: number;
+}
 
 /**
  * Resize an image in the browser using an off-screen canvas.
  * Returns a JPEG data URL and the new dimensions.
  */
-function resizeImage(dataUrl, maxDimension = MAX_DIMENSION, quality = JPEG_QUALITY) {
+function resizeImage(
+  dataUrl: string,
+  maxDimension: number,
+  quality: number
+): Promise<ResizeResult> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -40,29 +93,20 @@ function resizeImage(dataUrl, maxDimension = MAX_DIMENSION, quality = JPEG_QUALI
   });
 }
 
-/**
- * PhotoAssistant component
- *
- * Props:
- * - workerUrl: string (required) URL of the Cloudflare Worker backend.
- * - maxDimension: number (optional) max width/height for the resized image.
- * - quality: number (optional) JPEG compression quality (0-1).
- * - className: string (optional) extra CSS class for the root element.
- */
 export default function PhotoAssistant({
   workerUrl,
-  maxDimension = MAX_DIMENSION,
-  quality = JPEG_QUALITY,
+  maxDimension = DEFAULT_MAX_DIMENSION,
+  quality = DEFAULT_QUALITY,
   className = "",
-}) {
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+}: PhotoAssistantProps) {
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
-  const inputRef = useRef(null);
+  const [result, setResult] = useState<PhotoGuidanceResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = useCallback(async (event) => {
+  const handleFileChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0];
     setResult(null);
     setError(null);
@@ -71,7 +115,7 @@ export default function PhotoAssistant({
 
     if (!selected) return;
 
-    if (!SUPPORTED_TYPES.includes(selected.type)) {
+    if (!SUPPORTED_TYPES.includes(selected.type as typeof SUPPORTED_TYPES[number])) {
       setError("Please upload a JPG, PNG, or WEBP photo.");
       return;
     }
@@ -83,14 +127,14 @@ export default function PhotoAssistant({
     const reader = new FileReader();
     reader.onload = () => {
       setFile(selected);
-      setPreview(reader.result);
+      setPreview(reader.result as string);
     };
     reader.onerror = () => setError("Could not read the selected photo.");
     reader.readAsDataURL(selected);
   }, []);
 
   const handleSubmit = useCallback(
-    async (event) => {
+    async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       if (!file || !preview) return;
 
@@ -112,7 +156,7 @@ export default function PhotoAssistant({
           }),
         });
 
-        const data = await response.json().catch(() => ({}));
+        const data = (await response.json().catch(() => ({}))) as PhotoGuidanceResult & { error?: string };
 
         if (!response.ok) {
           throw new Error(data.error || "The photo could not be analyzed. Please try again.");
@@ -120,7 +164,7 @@ export default function PhotoAssistant({
 
         setResult(data);
       } catch (err) {
-        setError(err.message || "Something went wrong. Please try again.");
+        setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       } finally {
         setLoading(false);
       }

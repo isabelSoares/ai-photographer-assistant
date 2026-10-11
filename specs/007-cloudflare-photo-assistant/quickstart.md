@@ -29,15 +29,15 @@ wrangler deploy
 Copy the component files into `myWebSite`:
 
 ```bash
-cp web-component/PhotoAssistant.jsx myWebSite/src/components/
-cp web-component/photo-assistant.css myWebSite/src/styles/
+cp web-component/PhotoAssistant.tsx myWebSite/src/components/
+cp web-component/photo-assistant.scss myWebSite/src/styles/
 ```
 
 Import and use it in a page:
 
 ```jsx
 import PhotoAssistant from "../components/PhotoAssistant";
-import "../styles/photo-assistant.css";
+import "../styles/photo-assistant.scss";
 
 export default function AssistantPage() {
   return (

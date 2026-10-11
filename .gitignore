@@ -225,6 +225,10 @@ worker/.wrangler/
 worker/package-lock.json
 worker/yarn.lock
 worker/pnpm-lock.yaml
+web-component/node_modules/
+web-component/package-lock.json
+web-component/yarn.lock
+web-component/pnpm-lock.yaml
 
 .DS_Store
 Thumbs.db

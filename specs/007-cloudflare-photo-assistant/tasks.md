@@ -32,7 +32,7 @@ description: "Task list for Cloudflare Photo Assistant feature"
 **Purpose**: Core infrastructure that MUST be complete before user stories
 
 - [x] T006 Configure Worker CORS and request validation in `worker/src/index.ts`
-- [x] T007 Implement client-side image resize helper for `PhotoAssistant.jsx`
+- [x] T007 Implement client-side image resize helper for `PhotoAssistant.tsx`
 - [x] T008 Define shared guidance result types and constants in `worker/src/types.ts`
 
 **Checkpoint**: Foundation ready - user story implementation can now begin.
@@ -50,9 +50,9 @@ description: "Task list for Cloudflare Photo Assistant feature"
 - [x] T009 [US1] Integrate Workers AI object detection (`@cf/facebook/detr-resnet-50`) in `worker/src/index.ts`
 - [x] T010 [US1] Integrate Workers AI scene classification (`@cf/microsoft/resnet-50`) in `worker/src/index.ts`
 - [x] T011 [US1] Implement rule-based tip generator in `worker/src/tips.ts`
-- [x] T012 [US1] Build `PhotoAssistant.jsx` upload flow and result rendering
-- [x] T013 [US1] Add default styles in `web-component/photo-assistant.css`
-- [x] T014 [US1] Handle backend errors and unsupported files in `PhotoAssistant.jsx`
+- [x] T012 [US1] Build `PhotoAssistant.tsx` upload flow and result rendering
+- [x] T013 [US1] Add default styles in `web-component/photo-assistant.scss`
+- [x] T014 [US1] Handle backend errors and unsupported files in `PhotoAssistant.tsx`
 
 **Checkpoint**: User Story 1 is fully functional and testable independently.
 
@@ -66,8 +66,8 @@ description: "Task list for Cloudflare Photo Assistant feature"
 
 ### Implementation for User Story 2
 
-- [x] T015 [US2] Refactor `PhotoAssistant.jsx` to expose CSS variables for theming
-- [x] T016 [US2] Add responsive layout rules in `web-component/photo-assistant.css`
+- [x] T015 [US2] Refactor `PhotoAssistant.tsx` to expose CSS variables for theming
+- [x] T016 [US2] Add responsive layout rules in `web-component/photo-assistant.scss`
 - [x] T017 [US2] Write `docs/integration.md` with copy-and-paste instructions for `myWebSite`
 
 **Checkpoint**: User Story 2 works independently and blends into the portfolio.
@@ -83,7 +83,7 @@ description: "Task list for Cloudflare Photo Assistant feature"
 ### Implementation for User Story 3
 
 - [x] T018 [US3] Optimize Worker CPU usage by keeping image processing minimal in `worker/src/index.ts`
-- [x] T019 [US3] Add client-side resize limits to keep uploads small in `PhotoAssistant.jsx`
+- [x] T019 [US3] Add client-side resize limits to keep uploads small in `PhotoAssistant.tsx`
 - [x] T020 [US3] Document free-tier limits and CORS origin setup in `docs/integration.md`
 
 **Checkpoint**: Backend responds immediately after idle periods and remains within free quotas.

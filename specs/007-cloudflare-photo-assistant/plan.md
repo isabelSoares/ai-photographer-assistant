@@ -57,8 +57,8 @@ worker/
 └── wrangler.toml        # Worker name, route, AI binding, CORS origin
 
 web-component/
-├── PhotoAssistant.jsx   # React upload + result component
-└── photo-assistant.css  # Default theme using CSS variables
+├── PhotoAssistant.tsx   # React upload + result component (TypeScript)
+└── photo-assistant.scss # Default theme using SCSS variables
 
 docs/
 └── integration.md       # How to add the component to myWebSite

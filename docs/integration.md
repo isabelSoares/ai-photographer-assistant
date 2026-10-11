@@ -71,8 +71,8 @@ wrangler deploy
 Copy the two files from this repo into your portfolio:
 
 ```bash
-cp web-component/PhotoAssistant.jsx /path/to/myWebSite/src/components/
-cp web-component/photo-assistant.css /path/to/myWebSite/src/styles/
+cp web-component/PhotoAssistant.tsx /path/to/myWebSite/src/components/
+cp web-component/photo-assistant.scss /path/to/myWebSite/src/styles/
 ```
 
 ## 4. Import and use the component
@@ -81,7 +81,7 @@ In any React page (for example `src/pages/Assistant.jsx`):
 
 ```jsx
 import PhotoAssistant from "../components/PhotoAssistant";
-import "../styles/photo-assistant.css";
+import "../styles/photo-assistant.scss";
 
 export default function AssistantPage() {
   return (
@@ -96,7 +96,11 @@ Replace the `workerUrl` with the URL from step 2.
 
 ## 5. Customize the design
 
-The component uses CSS variables at the top of `photo-assistant.css`. Change them to match your portfolio:
+The component uses CSS variables at the top of `photo-assistant.scss`. Change them to match your portfolio. If your React setup does not already compile SCSS, install the `sass` package:
+
+```bash
+npm install -D sass
+```
 
 ```css
 :root {
