@@ -131,6 +131,7 @@ description: "Task list for Cloudflare Photo Assistant feature"
 - [x] T036 [P] Update `README.md` continuous-delivery section
 - [x] T037 Run `python -m unittest discover -s tests -v` to verify test updates pass
 - [x] T038 Fix `actions/setup-node` cache path resolution by removing `cache: npm` from `.github/workflows/ci.yml` and `.github/workflows/deploy-cloudflare.yml`
+- [x] T039 Commit `worker/package-lock.json` by removing it from `.gitignore` so `npm ci` can run in CI
 
 ---
 
