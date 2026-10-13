@@ -9,20 +9,27 @@ export interface Env {
 
 export class ClientError extends Error {}
 
-function corsHeaders(origin: string): Record<string, string> {
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
+function corsHeaders(requestOrigin: string | null, allowedOrigin: string): Record<string, string> {
+  const headers: Record<string, string> = { Vary: "Origin" };
+  if (requestOrigin && allowedOrigin && requestOrigin === allowedOrigin) {
+    headers["Access-Control-Allow-Origin"] = allowedOrigin;
+    headers["Access-Control-Allow-Methods"] = "POST, OPTIONS";
+    headers["Access-Control-Allow-Headers"] = "Content-Type";
+  }
+  return headers;
 }
 
-function jsonResponse(body: unknown, status: number, origin: string): Response {
+function jsonResponse(
+  body: unknown,
+  status: number,
+  requestOrigin: string | null,
+  allowedOrigin: string,
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      ...corsHeaders(origin),
+      ...corsHeaders(requestOrigin, allowedOrigin),
     },
   });
 }
@@ -97,14 +104,23 @@ async function runClassification(imageBytes: Uint8Array, ai: Ai): Promise<SceneL
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const origin = env.PORTFOLIO_ORIGIN || "*";
+    const requestOrigin = request.headers.get("Origin");
+    const allowedOrigin = env.PORTFOLIO_ORIGIN?.trim() ?? "";
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders(origin) });
+      const requestedMethod = request.headers.get("Access-Control-Request-Method");
+      if (!allowedOrigin || requestOrigin !== allowedOrigin || (requestedMethod && requestedMethod !== "POST")) {
+        return new Response(null, { status: 403, headers: { Vary: "Origin" } });
+      }
+      return new Response(null, { status: 204, headers: corsHeaders(requestOrigin, allowedOrigin) });
+    }
+
+    if (requestOrigin && (!allowedOrigin || requestOrigin !== allowedOrigin)) {
+      return jsonResponse({ error: "This origin is not allowed." }, 403, requestOrigin, allowedOrigin);
     }
 
     if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed." }, 405, origin);
+      return jsonResponse({ error: "Method not allowed." }, 405, requestOrigin, allowedOrigin);
     }
 
     try {
@@ -129,16 +145,17 @@ export default {
         req.filename
       );
 
-      return jsonResponse(result, 200, origin);
+      return jsonResponse(result, 200, requestOrigin, allowedOrigin);
     } catch (err) {
       if (err instanceof ClientError) {
-        return jsonResponse({ error: err.message }, 400, origin);
+        return jsonResponse({ error: err.message }, 400, requestOrigin, allowedOrigin);
       }
       console.error(err);
       return jsonResponse(
         { error: "The photo could not be analyzed. Please try again or choose another photo." },
         500,
-        origin
+        requestOrigin,
+        allowedOrigin
       );
     }
   },
