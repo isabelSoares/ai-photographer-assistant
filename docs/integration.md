@@ -37,6 +37,11 @@ wrangler login
 
 ## 2. Deploy the Cloudflare Worker
 
+Before the first public deployment, the Cloudflare account must have a `workers.dev`
+subdomain registered or a custom Worker route configured. If Wrangler reports that a
+`workers.dev` subdomain is not registered, use the Cloudflare dashboard link in the
+deployment error to complete account onboarding, then redeploy.
+
 From this repository:
 
 ```bash
@@ -45,7 +50,7 @@ npm install
 wrangler deploy
 ```
 
-After deployment, Wrangler prints your Worker URL, for example:
+After a successful deployment, Wrangler prints your Worker URL, for example:
 
 ```text
 https://ai-photo-assistant.<your-subdomain>.workers.dev

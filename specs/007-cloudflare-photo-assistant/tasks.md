@@ -135,6 +135,14 @@ description: "Task list for Cloudflare Photo Assistant feature"
 
 ---
 
+## Phase 8: Cloudflare Public Endpoint Activation
+
+**Purpose**: Publish the Worker at a stable public URL for the portfolio to call.
+
+- [ ] T040 Register the account's `workers.dev` subdomain in Cloudflare and rerun the deploy workflow for `worker/wrangler.toml`; confirm the deployed Worker URL is available for the portfolio's `AI_ASSISTANT_URL` setting, following `docs/integration.md`.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -145,6 +153,7 @@ description: "Task list for Cloudflare Photo Assistant feature"
 - **User Story 2 (Phase 4)**: Depends on User Story 1.
 - **User Story 3 (Phase 5)**: Depends on User Story 1.
 - **Environment & Deployment (Phase 6)**: Depends on all stories.
+- **Cloudflare Public Endpoint Activation (Phase 8)**: Depends on the Worker implementation and Cloudflare account onboarding.
 
 ### Parallel Opportunities
 
@@ -164,3 +173,4 @@ Complete Setup, Foundational, and User Story 1 to have a working assistant. Then
 - No automated tests are required for v1; validation is manual via `quickstart.md`.
 - The maintainer must update Node.js to v22+ before Wrangler will work.
 - The Worker must be redeployed after any `wrangler.toml` change.
+- The latest GitHub deploy run uploaded the Worker but could not publish it because the Cloudflare account has no registered `workers.dev` subdomain.
